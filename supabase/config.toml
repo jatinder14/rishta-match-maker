@@ -1,1 +1,3 @@
+# Old Lovable-managed project ref. Replace by running: npm run supabase:link
+# (Supabase CLI updates this to your linked project.)
 project_id = "qaccerzpaqbcvpcvbfmc"

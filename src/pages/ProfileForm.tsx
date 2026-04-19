@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useMyProfile } from "@/hooks/useMyProfile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,8 +31,9 @@ const ProfileForm = () => {
   const { id } = useParams();
   const isEditing = !!id && id !== "new";
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const { data: existingOwn } = useMyProfile({ enabled: !!user && !isEditing && !isAdmin });
 
   const [form, setForm] = useState({
     gender: "Male",
@@ -57,11 +59,20 @@ const ProfileForm = () => {
     residence_city: "",
     property_details: "",
     notes: "",
+    contact_phone: "",
+    contact_email: "",
   });
 
   const [photos, setPhotos] = useState<File[]>([]);
-  const [existingPhotos, setExistingPhotos] = useState<any[]>([]);
+  const [existingPhotos, setExistingPhotos] = useState<{ id: string; storage_path: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [ownerUserId, setOwnerUserId] = useState("");
+
+  useEffect(() => {
+    if (!isEditing && !isAdmin && existingOwn?.id) {
+      navigate(`/profile/${existingOwn.id}/edit`, { replace: true });
+    }
+  }, [isEditing, isAdmin, existingOwn?.id, navigate]);
 
   // Load existing profile for editing
   useQuery({
@@ -99,6 +110,8 @@ const ProfileForm = () => {
           residence_city: data.residence_city || "",
           property_details: data.property_details || "",
           notes: data.notes || "",
+          contact_phone: (data as { contact_phone?: string }).contact_phone || "",
+          contact_email: (data as { contact_email?: string }).contact_email || "",
         });
         setExistingPhotos(data.profile_photos || []);
       }
@@ -143,13 +156,25 @@ const ProfileForm = () => {
     try {
       let profileId = id;
 
+      const targetUserId =
+        isAdmin && ownerUserId.trim().length > 0 ? ownerUserId.trim() : user.id;
+
+      if (isAdmin && ownerUserId.trim().length > 0) {
+        const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuid.test(ownerUserId.trim())) {
+          toast.error("Profile owner must be a valid user UUID");
+          setSaving(false);
+          return;
+        }
+      }
+
       if (isEditing) {
         const { error } = await supabase.from("profiles").update(form).eq("id", id);
         if (error) throw error;
       } else {
         const { data, error } = await supabase
           .from("profiles")
-          .insert({ ...form, user_id: user.id })
+          .insert({ ...form, user_id: targetUserId })
           .select("id")
           .single();
         if (error) throw error;
@@ -174,11 +199,16 @@ const ProfileForm = () => {
       }
 
       queryClient.invalidateQueries({ queryKey: ["profiles"] });
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["profiles-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["profile-view"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-profiles"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["my-profile"] });
       toast.success(isEditing ? "Profile updated!" : "Profile created!");
       navigate(`/profile/${profileId}`);
-    } catch (error: any) {
-      toast.error(error.message || "Something went wrong");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -205,6 +235,28 @@ const ProfileForm = () => {
 
       <main className="mx-auto max-w-3xl px-4 py-6">
         <form onSubmit={handleSubmit} className="space-y-6">
+          {!isEditing && isAdmin && (
+            <Card className="border-dashed">
+              <CardHeader>
+                <CardTitle className="text-base">Admin: profile owner</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Leave blank to attach this listing to your admin account. Paste a member&apos;s Supabase auth user id
+                  to create their profile.
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="owner-user-id">User UUID (optional)</Label>
+                  <Input
+                    id="owner-user-id"
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    value={ownerUserId}
+                    onChange={(e) => setOwnerUserId(e.target.value)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {/* Personal Info */}
           <Card>
             <CardHeader>
@@ -254,6 +306,24 @@ const ProfileForm = () => {
               <Field label="Occupation" field="occupation" value={form.occupation} onChange={updateField} />
               <Field label="Income" field="income" value={form.income} onChange={updateField} />
               <Field label="🏢 Work Location" field="work_location" value={form.work_location} onChange={updateField} />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field
+                  label="Listing contact phone (optional)"
+                  field="contact_phone"
+                  type="tel"
+                  placeholder="Visible to you and admins only"
+                  value={form.contact_phone}
+                  onChange={updateField}
+                />
+                <Field
+                  label="Listing contact email (optional)"
+                  field="contact_email"
+                  type="email"
+                  placeholder="Visible to you and admins only"
+                  value={form.contact_email}
+                  onChange={updateField}
+                />
+              </div>
             </CardContent>
           </Card>
 

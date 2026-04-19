@@ -48,6 +48,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          contact_email: string | null
+          contact_phone: string | null
           caste: string | null
           created_at: string
           date_of_birth: string | null
@@ -77,6 +79,8 @@ export type Database = {
           work_location: string | null
         }
         Insert: {
+          contact_email?: string | null
+          contact_phone?: string | null
           caste?: string | null
           created_at?: string
           date_of_birth?: string | null
@@ -106,6 +110,8 @@ export type Database = {
           work_location?: string | null
         }
         Update: {
+          contact_email?: string | null
+          contact_phone?: string | null
           caste?: string | null
           created_at?: string
           date_of_birth?: string | null
@@ -136,6 +142,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subscriptions: {
+        Row: {
+          current_period_end: string | null
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          current_period_end?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          current_period_end?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -159,7 +192,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_delete_profile: { Args: { p_profile_id: string }; Returns: undefined }
+      admin_list_accounts: { Args: Record<PropertyKey, never>; Returns: Json }
+      admin_list_profiles: { Args: Record<PropertyKey, never>; Returns: Json }
+      feed_profiles: { Args: { p_gender?: string | null; p_search?: string | null }; Returns: Json }
+      get_profile_for_viewer: { Args: { p_profile_id: string }; Returns: Json }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_paid_subscriber: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "candidate"
