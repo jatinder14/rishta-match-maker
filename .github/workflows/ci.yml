@@ -1,5 +1,5 @@
 # CI: install, lint, test, production build. Uses placeholder Supabase env so Vite can bundle without repo secrets.
-# Deploy to production is typically Vercel/GitHub integration on push to main; this workflow validates every PR.
+# Production deploy: **Deploy to Cloud Run** workflow (Dockerfile + nginx); requires GCP_SA_JSON and Vite Supabase secrets in GitHub.
 
 name: CI
 
